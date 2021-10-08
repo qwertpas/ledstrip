@@ -31,6 +31,8 @@ class Mode
 {
 public:
     virtual void update(){}
+    virtual uint32_t setMinInput(int rgb_min_input){}
+    virtual uint32_t setMaxInput(int rgb_max_input){}
 };
 
 class Rainbow : public Mode
@@ -46,10 +48,12 @@ public:
     int switch_time = 1000;
 
     int rgb_min = 0;
+    int rgb_max = 0;
 
-    Rainbow(int rgb_min_input)
+    Rainbow(int rgb_min_input, int rgb_max_input = 255)
     {
-        rgb_min = rgb_min_input;
+        setMinInput(rgb_min_input);
+        setMaxInput(rgb_max_input);
     }
 
     void update()
@@ -58,7 +62,7 @@ public:
         
         for (int i = 0; i < leds.numPixels(); i++)
         {
-            uint32_t color = getRainbowColor(i * offset_multiplier + offset, rgb_min, 255);
+            uint32_t color = getRainbowColor(i * offset_multiplier + offset, rgb_min, rgb_max);
             leds.setPixel(i, color);
         }
 
@@ -82,6 +86,14 @@ public:
             if (offset <= 0)
                 offset = 255 * 6;
         }
+    }
+
+    uint32_t setMinInput(int rgb_min_input){
+      rgb_min = rgb_min_input;
+    }
+
+    uint32_t setMaxInput(int rgb_max_input){
+      rgb_max = rgb_max_input;
     }
 
     uint32_t getRainbowColor(int count, int min_bright, int max_bright)
@@ -165,9 +177,10 @@ public:
 boolean lastbutton10 = false;
 
 int mode_id = 0;
+int level;
 
 Rainbow rainbow0 = Rainbow(0);
-Rainbow rainbow1 = Rainbow(75);
+Rainbow rainbow1 = Rainbow(85);
 Halloween halloween = Halloween();
 
 Mode* modes[3];
@@ -183,6 +196,7 @@ void setup()
 
     pinMode(5, INPUT_PULLUP);
     pinMode(10, INPUT_PULLUP);
+    lastbutton10 = digitalRead(10);
 }
 
 void loop()
@@ -190,11 +204,13 @@ void loop()
 
     if (digitalRead(5))
     {
-      int32_t modeptr = modes[mode_id];
-        Serial.println(modeptr);
-        int32_t rainbowptr = &rainbow1;
-        Serial.println(rainbowptr);
-
+        while (level < 255){
+          level += 1;
+          modes[1]->setMinInput(level/3);
+          modes[mode_id]->setMaxInput(level);
+          modes[mode_id]->update();
+        }
+        
         //if toggle switch changes states
         if (digitalRead(10) != lastbutton10)
         {
@@ -210,12 +226,17 @@ void loop()
 
         //do whatever each mode does
 
-//        rainbow1.update();
-        //halloween.update();
         modes[mode_id]->update();
     }
     else
     {
+        while (level > 0){
+          level -= 1;
+          modes[1]->setMinInput(level/3);
+          modes[mode_id]->setMaxInput(level);
+          modes[mode_id]->update();
+        }
+        
         Serial.println("off");
 
         //turn leds off, wait 1 second before checking if on again
