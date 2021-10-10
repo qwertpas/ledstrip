@@ -16,12 +16,13 @@ DMAMEM byte displayMemory[numled * 12]; // 12 bytes per LED
 
 WS2812Serial leds(numled, displayMemory, drawingMemory, pin, WS2812_GRB);
 
+// NOTE: Colors are in RBG form
 #define RED 0xFF0000
 #define GREEN 0x00FF00
 #define BLUE 0x0000FF
 #define YELLOW 0xFFFF00
 #define PINK 0xFF1088
-#define ORANGE 0xE05800
+#define ORANGE 0xE0004B
 #define WHITE 0xFFFFFF
 
 #define ARRAYSIZE(x)  (sizeof(x) / sizeof(x[0]))
@@ -58,7 +59,7 @@ public:
 
     void update()
     {
-        Serial.println("Rainbow");
+        //Serial.println("Rainbow");
         
         for (int i = 0; i < leds.numPixels(); i++)
         {
@@ -156,22 +157,184 @@ public:
 
 class Halloween : public Mode
 {
+
+#define HALLOWEEN_TICKRATE              1000
+
+#define HALLOWEEN_MODE_NORMAL           0
+#define HALLOWEEN_MODE_LIGHTNING        1
+
+#define HALLOWEEN_LIGHTNING_STEP_DARK   0
+#define HALLOWEEN_LIGHTNING_STEP_FLASH  1
+
+#define HALLOWEEN_LIGHTNING_CHANCE      1
+#define HALLOWEEN_LIGHTNING_DELAY       50
+#define HALLOWEEN_LIGHTNING_FLASH_MIN   2
+#define HALLOWEEN_LIGHTNING_FLASH_MAX   5
+
+#define HALLOWEEN_DARKNESS_DELAY_MIN    50
+#define HALLOWEEN_DARKNESS_DELAY_MAX    500
+
+#define HALLOWEEN_LIGHTNING_WIDTH_MIN   10
+#define HALLOWEEN_LIGHTNING_WIDTH_MAX   50
+
 public:
     void update(){
-        Serial.println("Halloween");
-
-        for (int i = 0; i < leds.numPixels(); i++)
-        {
-            uint32_t color;
-            if(millis() % 1000 < 500){
-                color = RED;
-            }else{
-                color = ORANGE;
-            }
-            leds.setPixel(i, color);
+        if ((millis() - tickstart >= HALLOWEEN_TICKRATE) && mode == HALLOWEEN_MODE_NORMAL){
+          tickstart = millis();
+          if (random(100) < HALLOWEEN_LIGHTNING_CHANCE){
+              mode = HALLOWEEN_MODE_LIGHTNING;
+              lightning_flash_cnt = random(HALLOWEEN_LIGHTNING_FLASH_MIN, HALLOWEEN_LIGHTNING_FLASH_MAX + 1);
+              darkness_delay = 1000;
+              lightning_flash_num = 0;
+              lightning_step = HALLOWEEN_LIGHTNING_STEP_DARK;
+              starttime = millis();
+              r = 0;
+              g = 0;
+              b = 0;
+          }
+        }
+        //Serial.println("Halloween");
+        if (mode == HALLOWEEN_MODE_NORMAL){
+          normal();
+        } else {
+          lightning();
         }
         leds.show();
+
     }
+
+private:
+  uint32_t tickstart = 0;
+  uint32_t ticktime;
+
+  uint32_t starttime;
+  uint32_t elapsed;
+  uint32_t darkness_delay;
+
+  uint32_t mode = HALLOWEEN_MODE_NORMAL;
+
+  uint32_t lightning_flash_cnt;
+  uint32_t lightning_flash_num;
+  uint32_t lightning_step;
+
+  uint32_t strike_width;
+  uint32_t strike_position;
+
+  uint32_t r;
+  uint32_t g;
+  uint32_t b;
+  uint32_t w;
+  uint32_t color;
+  
+  void normal(){
+      uint32_t color;
+      color = ORANGE;
+      if (r < 0xE0){
+        r += 1;
+      }
+      if (g < 0x4B){
+        g += 1;
+      }
+      for (int i = 0; i < leds.numPixels(); i++)
+      {
+          color = 0;
+          color += r << 16;
+          color += b << 8;
+          color += g << 0;
+          leds.setPixel(i, color);
+      }
+  }
+  void lightning(){
+      elapsed = millis() - starttime;
+      if (lightning_flash_num < lightning_flash_cnt){
+          if (lightning_step == HALLOWEEN_LIGHTNING_STEP_DARK && elapsed > darkness_delay){
+            starttime = millis();
+            lightning_step = HALLOWEEN_LIGHTNING_STEP_FLASH;
+            strike_width = random(HALLOWEEN_LIGHTNING_WIDTH_MIN, HALLOWEEN_LIGHTNING_WIDTH_MAX);
+            strike_position = random(0, leds.numPixels() - strike_width);
+            Serial.println("Strike");
+            if (w < 205){
+              w += 50;
+            }
+            
+          } else if (lightning_step == HALLOWEEN_LIGHTNING_STEP_FLASH && elapsed > HALLOWEEN_LIGHTNING_DELAY){
+            starttime = millis();
+            lightning_step = HALLOWEEN_LIGHTNING_STEP_DARK;
+            darkness_delay = random(HALLOWEEN_DARKNESS_DELAY_MIN, HALLOWEEN_DARKNESS_DELAY_MAX);
+            lightning_flash_num ++;
+            if (lightning_flash_num == lightning_flash_cnt){
+              darkness_delay = (500 * lightning_flash_num);
+            }
+          } else {
+              if (lightning_step == HALLOWEEN_LIGHTNING_STEP_FLASH){
+                r = 255;
+                g = 255;
+                b = 255;
+              } else {
+                if (r > 2){
+                  r -= 4;
+                }
+                if (g > 2){
+                  g -= 4;
+                }
+                if (b > 2){
+                  b -= 4;
+                }
+//                if (w >= 2){
+//                  w -= 1;
+//                }
+              }
+              for (int i = 0; i < leds.numPixels(); i++)
+              {
+                  color = 0;
+                  if ((i > strike_position) && (i < (strike_position + strike_width))){
+                    color += r << 16;
+                    color += b << 8;
+                    color += g << 0;
+                  } else {
+                    color += w << 16;
+                    color += w << 8;
+                    color += w << 0;
+                  }
+                  leds.setPixel(i, color);
+              }
+          }
+      } else {
+          if (elapsed < darkness_delay){
+            if (r >= 2){
+                r -= 2;
+              }
+              if (g >= 2){
+                g -= 2;
+              }
+              if (b >= 2){
+                b -= 2;
+              }
+              if (w >= 1){
+                w -= 1;
+              }
+            for (int i = 0; i < leds.numPixels(); i++)
+            {
+                color = 0;
+                if ((i > strike_position) && (i < (strike_position + strike_width))){
+                  color += r << 16;
+                  color += b << 8;
+                  color += g << 0;
+                } else {
+                  color += w << 16;
+                  color += w << 8;
+                  color += w << 0;
+                }
+                leds.setPixel(i, color);
+            }
+          } else {
+              mode = HALLOWEEN_MODE_NORMAL; 
+              r = 0;
+              g = 0;
+              b = 0;
+          }
+      }
+  }
 };
 
 boolean lastbutton10 = false;
