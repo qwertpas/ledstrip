@@ -1,4 +1,5 @@
 #include <WS2812Serial.h>
+#include <stdlib.h>
 
 const int numled = 100;
 const int pin = 1;
@@ -162,6 +163,8 @@ class Halloween : public Mode
 
 #define HALLOWEEN_MODE_NORMAL           0
 #define HALLOWEEN_MODE_LIGHTNING        1
+#define HALLOWEEN_MODE_BLOOD            2
+
 
 #define HALLOWEEN_LIGHTNING_STEP_DARK   0
 #define HALLOWEEN_LIGHTNING_STEP_FLASH  1
@@ -176,6 +179,13 @@ class Halloween : public Mode
 
 #define HALLOWEEN_LIGHTNING_WIDTH_MIN   10
 #define HALLOWEEN_LIGHTNING_WIDTH_MAX   50
+
+
+#define HALLOWEEN_BLOOD_CHANCE          10
+#define HALLOWEEN_BLOOD_WIDTH_MIN        5
+#define HALLOWEEN_BLOOD_WIDTH_MAX       20
+#define HALLOWEEN_BLOOD_TIME         12000
+
 
 public:
     void update(){
@@ -192,12 +202,27 @@ public:
               g = 0;
               b = 0;
           }
+          if (random(100) < HALLOWEEN_BLOOD_CHANCE){
+            starttime = millis();
+            mode = HALLOWEEN_MODE_BLOOD;
+            blood_width = random(HALLOWEEN_BLOOD_WIDTH_MIN, HALLOWEEN_BLOOD_WIDTH_MAX);
+            blood_position = random(0, leds.numPixels());
+            Serial.println("blood mode");
+            Serial.println(blood_width);
+            Serial.println(blood_position);
+
+
+          }
         }
         //Serial.println("Halloween");
         if (mode == HALLOWEEN_MODE_NORMAL){
           normal();
-        } else {
+        } 
+        if (mode == HALLOWEEN_MODE_LIGHTNING){
           lightning();
+        }
+        if (mode == HALLOWEEN_MODE_BLOOD){
+          blood();
         }
         leds.show();
 
@@ -220,27 +245,41 @@ private:
   uint32_t strike_width;
   uint32_t strike_position;
 
+  uint32_t blood_width;
+  int blood_position;
+  
   uint32_t r;
   uint32_t g;
   uint32_t b;
   uint32_t w;
-  uint32_t color;
+
+  typedef struct{
+    uint32_t r;
+    uint32_t g;
+    uint32_t b;
+  }colorStruct;
+
+  colorStruct ledarray[100];
+
   
   void normal(){
-      uint32_t color;
-      color = ORANGE;
       if (r < 0xE0){
         r += 1;
+      }else{
+        r -= 1;
       }
       if (g < 0x4B){
         g += 1;
+      }else{
+        g -= 1;
       }
       for (int i = 0; i < leds.numPixels(); i++)
       {
-          color = 0;
+          uint32_t color = 0;
           color += r << 16;
           color += b << 8;
           color += g << 0;
+
           leds.setPixel(i, color);
       }
   }
@@ -286,7 +325,7 @@ private:
               }
               for (int i = 0; i < leds.numPixels(); i++)
               {
-                  color = 0;
+                  uint32_t color = 0;
                   if ((i > strike_position) && (i < (strike_position + strike_width))){
                     color += r << 16;
                     color += b << 8;
@@ -315,7 +354,7 @@ private:
               }
             for (int i = 0; i < leds.numPixels(); i++)
             {
-                color = 0;
+                uint32_t color = 0;
                 if ((i > strike_position) && (i < (strike_position + strike_width))){
                   color += r << 16;
                   color += b << 8;
@@ -335,11 +374,100 @@ private:
           }
       }
   }
+
+  boolean isRed[100];
+
+  void blood(){
+    elapsed = millis() - starttime;
+
+
+    if(elapsed > HALLOWEEN_BLOOD_TIME){
+        mode = HALLOWEEN_MODE_NORMAL;
+
+        for (int i = 0; i < 100; i++){
+          isRed[i] = false;
+        }
+    }
+
+
+    for (int i = 0; i < leds.numPixels(); i++){
+      
+
+
+      int dist = abs(i - blood_position);
+
+      if(elapsed > HALLOWEEN_BLOOD_TIME - 2500){
+
+        if(elapsed % 8 == 0){
+          if(ledarray[i].r < 0xE0){
+            ledarray[i].r += 1;
+          }else{
+            ledarray[i].r -= 1;
+          }
+  
+          if(ledarray[i].g < 0x4B){
+            ledarray[i].g += 1;
+          }else{
+            ledarray[i].g -= 1;
+          }
+        }
+        
+                
+      }else if(elapsed > HALLOWEEN_BLOOD_TIME - 6000){
+
+        int32_t endred = 130;
+        if(elapsed % 8 == 0){
+          if(ledarray[i].r < endred){
+            ledarray[i].r += 1;
+          }else{
+            ledarray[i].r -= 1;
+          }
+
+          int32_t endgreen = 0x00 + 3*dist;
+          if(endgreen > 0x4B) endgreen = 0x4B;
+          if(endgreen < 1) endgreen = 0x01;
+          if(ledarray[i].g < endgreen){
+            ledarray[i].g += 1;
+          }else{
+            ledarray[i].g -= 1;
+          }
+        }
+        
+                
+      }else if(isRed[i]){
+
+        ledarray[i].r = 130;
+        ledarray[i].b = 0;
+        ledarray[i].g = 0; 
+        
+        
+      }else if(abs(dist) < blood_width && dist*100 < random(-1000000, HALLOWEEN_BLOOD_WIDTH_MAX*100)){
+        isRed[i] = true;
+        
+      }else{
+        ledarray[i].r = 0xE0;
+        ledarray[i].g = 0x4B;
+        ledarray[i].b = 0x00;
+      }
+
+      uint32_t color1 = 0;
+      color1 += ledarray[i].r << 16;
+      color1 += ledarray[i].b << 8;
+      color1 += ledarray[i].g << 0;
+      leds.setPixel(i, color1);
+
+    }
+  }
+
+  
+  
 };
+
+
 
 boolean lastbutton10 = false;
 
-int mode_id = 0;
+int mode_id = 2;
 int level;
 
 Rainbow rainbow0 = Rainbow(0);
